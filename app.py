@@ -230,6 +230,36 @@ def init_db():
         created_at TEXT
     );
     """)
+    
+    # MIGRASI TABEL AUDIT LOGS
+    audit_columns = {
+        row["name"]
+        for row in cur.execute(
+            "PRAGMA table_info(audit_logs)"
+        ).fetchall()
+    }
+
+    if "username" not in audit_columns:
+        cur.execute(
+            "ALTER TABLE audit_logs ADD COLUMN username TEXT"
+        )
+
+    if "activity" not in audit_columns:
+        cur.execute(
+            "ALTER TABLE audit_logs ADD COLUMN activity TEXT"
+        )
+
+    if "created_at" not in audit_columns:
+        cur.execute(
+            "ALTER TABLE audit_logs ADD COLUMN created_at TEXT"
+        )
+
+    cur.execute("""
+        UPDATE audit_logs
+        SET created_at = ?
+        WHERE created_at IS NULL OR created_at = ''
+    """, (datetime.now().isoformat(timespec="seconds"),))
+  
 
     # Default Chart of Accounts
     defaults = [
