@@ -320,6 +320,7 @@ def user_count():
     return query_df("SELECT COUNT(*) AS total FROM users").iloc[0]["total"]
 
 
+
 def login_screen():
     st.markdown("""
     <div class="finora-header">
@@ -361,7 +362,11 @@ def login_screen():
                     st.rerun()
         return
 
-    login_tab, info_tab = st.tabs(["Login", "Informasi"])
+    login_tab, reset_tab, info_tab = st.tabs([
+        "Login",
+        "Reset Password Admin",
+        "Informasi"
+    ])
 
     with login_tab:
         with st.form("login_form"):
@@ -389,9 +394,75 @@ def login_screen():
                 else:
                     st.error("Username atau password salah.")
 
+    with reset_tab:
+        st.warning(
+            "Gunakan kunci pemulihan yang sudah kamu atur di Streamlit Secrets."
+        )
+
+        with st.form("reset_admin_password"):
+            admin_username = st.text_input("Username Admin")
+            recovery_key = st.text_input(
+                "Kunci Pemulihan",
+                type="password"
+            )
+            new_password = st.text_input(
+                "Password Baru",
+                type="password"
+            )
+            confirm_password = st.text_input(
+                "Konfirmasi Password Baru",
+                type="password"
+            )
+
+            submit_reset = st.form_submit_button("Reset Password")
+
+            if submit_reset:
+                configured_key = get_secret("FINORA_RECOVERY_KEY")
+
+                if not configured_key:
+                    st.error(
+                        "FINORA_RECOVERY_KEY belum diatur di Streamlit Secrets."
+                    )
+                elif not secrets.compare_digest(
+                    str(recovery_key),
+                    str(configured_key)
+                ):
+                    st.error("Kunci pemulihan salah.")
+                elif not admin_username.strip():
+                    st.error("Masukkan username Admin.")
+                elif len(new_password) < 8:
+                    st.error("Password baru minimal 8 karakter.")
+                elif new_password != confirm_password:
+                    st.error("Konfirmasi password tidak sama.")
+                else:
+                    admins = query_df(
+                        """
+                        SELECT id FROM users
+                        WHERE username=? AND role='Admin'
+                        """,
+                        (admin_username.strip(),)
+                    )
+
+                    if admins.empty:
+                        st.error("Akun Admin tidak ditemukan.")
+                    else:
+                        execute(
+                            "UPDATE users SET password=? WHERE id=?",
+                            (
+                                hash_password(new_password),
+                                int(admins.iloc[0]["id"])
+                            )
+                        )
+                        st.success(
+                            "Password Admin berhasil diperbarui. "
+                            "Silakan kembali ke tab Login."
+                        )
+
     with info_tab:
-        st.write("FINORA AI merupakan sistem pengelolaan keuangan, akuntansi, dan pemeriksaan data berbantuan AI.")
-        st.write("Akun pengguna baru dibuat oleh Administrator.")
+        st.write(
+            "FINORA AI merupakan sistem pengelolaan keuangan, "
+            "akuntansi, dan pemeriksaan data berbantuan AI."
+        )
 
 
 if "authenticated" not in st.session_state:
