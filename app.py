@@ -251,6 +251,43 @@ def init_db():
             VALUES (?, ?, ?)
         """, item)
 
+   
+    # MIGRASI DATABASE LAMA
+    user_columns = {
+        row["name"]
+        for row in cur.execute("PRAGMA table_info(users)").fetchall()
+    }
+
+    if "full_name" not in user_columns:
+        cur.execute("ALTER TABLE users ADD COLUMN full_name TEXT")
+
+    if "role" not in user_columns:
+        cur.execute(
+            "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'Admin'"
+        )
+
+    if "created_at" not in user_columns:
+        cur.execute("ALTER TABLE users ADD COLUMN created_at TEXT")
+
+    # Lengkapi data pengguna lama
+    cur.execute("""
+        UPDATE users
+        SET full_name = username
+        WHERE full_name IS NULL OR full_name = ''
+    """)
+
+    cur.execute("""
+        UPDATE users
+        SET role = 'Admin'
+        WHERE role IS NULL OR role = ''
+    """)
+
+    cur.execute("""
+        UPDATE users
+        SET created_at = ?
+        WHERE created_at IS NULL OR created_at = ''
+    """, (datetime.now().isoformat(),))
+
     conn.commit()
     conn.close()
 
@@ -387,8 +424,8 @@ def login_screen():
                     user = users.iloc[0]
                     st.session_state.authenticated = True
                     st.session_state.username = user["username"]
-                    st.session_state.full_name = user["full_name"]
-                    st.session_state.role = user["role"]
+                    st.session_state.full_name = user.get("full_name") or user["username"]
+                    st.session_state.role = user.get("role") or "Admin"
                     log_activity("Login")
                     st.rerun()
                 else:
